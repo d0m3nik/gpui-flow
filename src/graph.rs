@@ -137,7 +137,7 @@ impl FlowGraph {
         viewport: &Viewport,
         is_connecting: bool,
         snap_node_id: Option<&NodeId>,
-        _entity_id: EntityId,
+        entity_id: EntityId,
         window: &mut Window,
         cx: &mut App,
     ) -> AnyElement {
@@ -224,6 +224,7 @@ impl FlowGraph {
             .on_mouse_down(MouseButton::Left, {
                 let node_id = node_id.clone();
                 let state = state.clone();
+                let entity_id = entity_id;
                 move |event, _window, cx| {
                     let multi = event.modifiers.platform;
                     let mouse_pos = event.position;
@@ -261,12 +262,12 @@ impl FlowGraph {
                             }
                         }
 
+                        state.drag_state = Some(DragState {
+                            origin_mouse: (mouse_pos.x.as_f32(), mouse_pos.y.as_f32()),
+                            node_origins: node_origins.clone(),
+                        });
                         if !node_origins.is_empty() {
                             state.push_undo();
-                            state.drag_state = Some(DragState {
-                                origin_mouse: (mouse_pos.x.as_f32(), mouse_pos.y.as_f32()),
-                                node_origins,
-                            });
                             for n in &mut state.nodes {
                                 if n.selected && n.draggable {
                                     n.dragging = true;
@@ -274,6 +275,7 @@ impl FlowGraph {
                             }
                         }
                     });
+                    cx.notify(entity_id);
                 }
             })
             .child(content)
@@ -858,27 +860,29 @@ impl Render for FlowGraph {
                         }
                         // Node dragging
                         else if let Some(ref drag) = state.drag_state {
-                            let dx = (mx - drag.origin_mouse.0) / state.viewport.zoom;
-                            let dy = (my - drag.origin_mouse.1) / state.viewport.zoom;
+                            if !drag.node_origins.is_empty() {
+                                let dx = (mx - drag.origin_mouse.0) / state.viewport.zoom;
+                                let dy = (my - drag.origin_mouse.1) / state.viewport.zoom;
 
-                            let origins = drag.node_origins.clone();
-                            let snap = state.snap_to_grid;
-                            let snap_grid = state.snap_grid;
-                            for (node_id, origin) in &origins {
-                                let mut new_x = origin.x + dx;
-                                let mut new_y = origin.y + dy;
+                                let origins = drag.node_origins.clone();
+                                let snap = state.snap_to_grid;
+                                let snap_grid = state.snap_grid;
+                                for (node_id, origin) in &origins {
+                                    let mut new_x = origin.x + dx;
+                                    let mut new_y = origin.y + dy;
 
-                                if snap {
-                                    let (gx, gy) = snap_grid;
-                                    new_x = (new_x / gx).round() * gx;
-                                    new_y = (new_y / gy).round() * gy;
+                                    if snap {
+                                        let (gx, gy) = snap_grid;
+                                        new_x = (new_x / gx).round() * gx;
+                                        new_y = (new_y / gy).round() * gy;
+                                    }
+
+                                    if let Some(node) = state.get_node_mut(node_id) {
+                                        node.position = FlowPoint::new(new_x, new_y);
+                                    }
                                 }
-
-                                if let Some(node) = state.get_node_mut(node_id) {
-                                    node.position = FlowPoint::new(new_x, new_y);
-                                }
+                                changed = true;
                             }
-                            changed = true;
                         }
                         // Canvas panning
                         else if let Some(pan) = state.pan_drag {
