@@ -29,6 +29,11 @@ impl Minimap {
         self.container_bounds = Some((width, height));
         self
     }
+
+    /// Update the container bounds after construction.
+    pub fn set_container_bounds(&mut self, width: f32, height: f32) {
+        self.container_bounds = Some((width, height));
+    }
 }
 
 impl Render for Minimap {

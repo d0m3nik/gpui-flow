@@ -23,6 +23,11 @@ impl Controls {
         self.container_size = (width, height);
         self
     }
+
+    /// Update the container size after construction.
+    pub fn set_container_size(&mut self, width: f32, height: f32) {
+        self.container_size = (width, height);
+    }
 }
 
 impl Render for Controls {
