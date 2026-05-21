@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use gpui::*;
 
 use crate::store::FlowState;
@@ -43,6 +46,11 @@ impl Render for Minimap {
         let entity_id = cx.entity_id();
         let container = self.container_bounds.unwrap_or((900.0, 600.0));
 
+        let canvas_origin: Rc<RefCell<Option<(f32, f32)>>> = Default::default();
+        let origin_for_paint = canvas_origin.clone();
+        let origin_for_down = canvas_origin.clone();
+        let origin_for_move = canvas_origin.clone();
+
         div()
             .id("flow-minimap")
             .w(px(MINIMAP_WIDTH))
@@ -56,6 +64,10 @@ impl Render for Minimap {
                 canvas(
                     |_bounds, _window, _cx| {},
                     move |bounds, _: (), window, cx| {
+                        *origin_for_paint.borrow_mut() = Some((
+                            bounds.origin.x.as_f32(),
+                            bounds.origin.y.as_f32(),
+                        ));
                         let state = state_for_canvas.read(cx);
                         paint_minimap(&bounds, state, container, window);
                     },
@@ -65,9 +77,12 @@ impl Render for Minimap {
             .on_mouse_down(MouseButton::Left, {
                 let state = state_for_mouse.clone();
                 let entity_id = entity_id;
+                let origin_for_down = origin_for_down;
                 move |event, _window, cx| {
-                    let mx = event.position.x.as_f32();
-                    let my = event.position.y.as_f32();
+                    let origin = origin_for_down.borrow();
+                    let (ox, oy) = origin.unwrap_or((0.0, 0.0));
+                    let mx = event.position.x.as_f32() - ox;
+                    let my = event.position.y.as_f32() - oy;
                     pan_to_minimap_point(&state, mx, my, container, cx);
                     cx.notify(entity_id);
                 }
@@ -75,10 +90,13 @@ impl Render for Minimap {
             .on_mouse_move({
                 let state = state_for_mouse.clone();
                 let entity_id = entity_id;
+                let origin_for_move = origin_for_move;
                 move |event, _window, cx| {
                     if event.pressed_button == Some(MouseButton::Left) {
-                        let mx = event.position.x.as_f32();
-                        let my = event.position.y.as_f32();
+                        let origin = origin_for_move.borrow();
+                        let (ox, oy) = origin.unwrap_or((0.0, 0.0));
+                        let mx = event.position.x.as_f32() - ox;
+                        let my = event.position.y.as_f32() - oy;
                         pan_to_minimap_point(&state, mx, my, container, cx);
                         cx.notify(entity_id);
                     }
